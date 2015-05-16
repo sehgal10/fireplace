@@ -213,50 +213,55 @@ define('reviews',
         var $this = $(this);
         var data = utils.getVars($this.serialize());
         var slug = data.app;
-        forms.toggleSubmitFormState($this);
-
-        requests.post(urls.api.url('reviews'), data).done(function(new_review) {
-            // Update the ratings listing for the app.
-            rewriter(slug, function(data) {
-                data.objects.unshift(new_review);
-                data.meta.total_count += 1;
-                if (!data.user) {
-                    data.user = {};
+        if(data.text.trim().length > 0)
++       {
++           forms.toggleSubmitFormState($this);
+            requests.post(urls.api.url('reviews'), data).done(function(new_review) {
+                // Update the ratings listing for the app.
+                rewriter(slug, function(data) {
+                    data.objects.unshift(new_review);
+                    data.meta.total_count += 1;
+                    if (!data.user) {
+                        data.user = {};
+                    }
+                    data.user.has_rated = true;
+                    return data;
+                });
+    
+                var new_rating = parseInt(data.rating, 10);
+    
+                // Update the app model.
+                var app_model = models('app').lookup(slug);
+                if (app_model) {
+                    var num_ratings = app_model.ratings.count;
+                    if (!num_ratings) {
+                        app_model.ratings.average = new_rating;
+                    } else {
+                        // Update the app's rating to reflect the new average.
+                        app_model.ratings.average =
+                            (app_model.ratings.average * num_ratings + new_rating) /
+                            (num_ratings + 1);
+                    }
+                    app_model.ratings.count += 1;
                 }
-                data.user.has_rated = true;
-                return data;
+    
+                // Set the user's review in the request cache.
+                cache.set(urls.api.params('reviews', {app: slug, user: 'mine'}), {
+                    meta: {limit: 20, next: null, offset: 0, total_count: 1},
+                    info: {average: new_rating, slug: slug},
+                    objects: [new_review]
+                });
+    
+                notify({message: gettext('Your review was successfully posted. Thanks!')});
+                z.page.trigger('navigate', urls.reverse('app', [slug]));
+            }).fail(function() {
+                forms.toggleSubmitFormState($this, true);
+                notify({message: gettext('Sorry, there was an error posting your review. Please try again later.')});
             });
-
-            var new_rating = parseInt(data.rating, 10);
-
-            // Update the app model.
-            var app_model = models('app').lookup(slug);
-            if (app_model) {
-                var num_ratings = app_model.ratings.count;
-                if (!num_ratings) {
-                    app_model.ratings.average = new_rating;
-                } else {
-                    // Update the app's rating to reflect the new average.
-                    app_model.ratings.average =
-                        (app_model.ratings.average * num_ratings + new_rating) /
-                        (num_ratings + 1);
-                }
-                app_model.ratings.count += 1;
-            }
-
-            // Set the user's review in the request cache.
-            cache.set(urls.api.params('reviews', {app: slug, user: 'mine'}), {
-                meta: {limit: 20, next: null, offset: 0, total_count: 1},
-                info: {average: new_rating, slug: slug},
-                objects: [new_review]
-            });
-
-            notify({message: gettext('Your review was successfully posted. Thanks!')});
-            z.page.trigger('navigate', urls.reverse('app', [slug]));
-        }).fail(function() {
-            forms.toggleSubmitFormState($this, true);
-            notify({message: gettext('Sorry, there was an error posting your review. Please try again later.')});
-        });
+        } 
+        else {
+            notify({message: gettext('Sorry, cannot submit empty review.')});
+        }
     }));
 
     z.doc.on('submit', '.edit-review-form', utils._pd(function(e) {
@@ -265,28 +270,34 @@ define('reviews',
         var uri = settings.api_url + urls.api.sign(resource_uri);
         var data = utils.getVars($this.serialize());
         var slug = data.app;
-        forms.toggleSubmitFormState($this);
-
-        requests.put(uri, data).done(function(editedReview) {
-            // Rewrite cache with edited review.
-            cache.set(settings.api_url + editedReview.resource_uri, editedReview);
-
-            rewriter(slug, function(reviews) {
-                reviews.objects.forEach(function(obj, i) {
-                    if (reviews.objects[i].resource_uri === resource_uri) {
-                        reviews.objects[i].body = data.body;
-                        reviews.objects[i].rating = data.rating;
-                    }
+        if(data.text.trim().length > 0)
++       {
+            forms.toggleSubmitFormState($this);
+    
+            requests.put(uri, data).done(function(editedReview) {
+                // Rewrite cache with edited review.
+                cache.set(settings.api_url + editedReview.resource_uri, editedReview);
+    
+                rewriter(slug, function(reviews) {
+                    reviews.objects.forEach(function(obj, i) {
+                        if (reviews.objects[i].resource_uri === resource_uri) {
+                            reviews.objects[i].body = data.body;
+                            reviews.objects[i].rating = data.rating;
+                        }
+                    });
+                    return reviews;
                 });
-                return reviews;
+    
+                notify({message: gettext('Your review was successfully edited')});
+                z.page.trigger('navigate', urls.reverse('app', [slug]));
+            }).fail(function() {
+                forms.toggleSubmitFormState($this, true);
+                notify({message: gettext('Sorry, there was an issue editing your review. Please try again later')});
             });
-
-            notify({message: gettext('Your review was successfully edited')});
-            z.page.trigger('navigate', urls.reverse('app', [slug]));
-        }).fail(function() {
-            forms.toggleSubmitFormState($this, true);
-            notify({message: gettext('Sorry, there was an issue editing your review. Please try again later')});
-        });
+        }
+        else {
+            notify({message: gettext('Sorry, cannot submit empty review.')});
+        }
     }));
 
     return {
