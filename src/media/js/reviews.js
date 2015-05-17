@@ -214,8 +214,8 @@ define('reviews',
         var data = utils.getVars($this.serialize());
         var slug = data.app;
         if(data.text.trim().length > 0)
-+       {
-+           forms.toggleSubmitFormState($this);
+        {
+            forms.toggleSubmitFormState($this);
             requests.post(urls.api.url('reviews'), data).done(function(new_review) {
                 // Update the ratings listing for the app.
                 rewriter(slug, function(data) {
@@ -271,7 +271,7 @@ define('reviews',
         var data = utils.getVars($this.serialize());
         var slug = data.app;
         if(data.text.trim().length > 0)
-+       {
+        {
             forms.toggleSubmitFormState($this);
     
             requests.put(uri, data).done(function(editedReview) {
